@@ -1,0 +1,605 @@
+<!--This work is a collaboration between Aly Khaled and Khubaib Rehan Wali-->
+
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+ <title>Three.js Sample Project</title>
+ <meta charset="utf-8">
+ <meta name="viewport"
+ content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+ <style> 
+    body { margin: 0; }
+    div {position: fixed; background-color: rgba(255, 255, 255, 0.3); padding: 0px 15px;} 
+ </style>
+ <script type="importmap">
+            {"imports": {"three": "https://cdn.jsdelivr.net/npm/three@v0.180.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.180.0/examples/jsm/"}}
+ </script>
+ </head>
+ <body>
+    <div>
+        <h3>Inputs:</h3>
+        <ul>
+            <li>Mouse (left click): Look around</li>
+            <li>Mouse (scroll):     Zoom in/out</li>
+            <li>N, L, P:            Switch between shading types</li>
+            <li>W:                  Wireframe</li>
+            <li>Arrow keys:         Rotate object</li>
+            <li>R:                  Toggle rotation</li>
+            <li>[:                  Zoom in</li>
+            <li>]:                  Zoom out</li>
+            <li>C:                  Toggle continuous LOD</li>
+            <li>A:                  Animate between 2 parametric shapes</li>
+            <li>F/S:                Animation speed up/down</li>
+            <li>T:                  Toggle animation pause</li>
+            <li>Z:                  Animate between 25 parametric shapes</li>
+            <li>J/K:                Show next/prev shape</li>
+            <li>X+num+X:            Show shape number X (X in [1,25])</li>
+        </ul>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
+        
+        let camera, scene, renderer, controls, mesh, index = 18, shading='w', animSpeed = 1.0, ry = 0, rx = 0, t = 0;
+        let rotation_flag = false, cLODFlag = false, anim15flag = false, anim18flag = false, pauseAnimFlag = false, prevFlag = false, nextFlag = false;
+        let buffer = "";
+
+        //our surface are 19 n 20, see doc for calculation and change if i messed it up somehow
+        const objects = [f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25]; //add the rest for the last 3 parts
+        //const objects = [f24,f25];
+        init();
+        create();
+        document.addEventListener( "keydown", onDocumentKeyDown, false );
+        // INITIALIZATION
+        function init() {
+            renderer = new THREE.WebGLRenderer( { antialias: true } );
+            renderer.setSize( window.innerWidth, window.innerHeight );
+            renderer.setPixelRatio( window.devicePixelRatio );
+            renderer.setClearColor( 0x4D4D4D );
+            document.body.appendChild( renderer.domElement );
+            renderer.setAnimationLoop( animate );
+            window.addEventListener( 'resize', onWindowResize );
+            camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+            camera.position.set( 1, 2, 4 );
+            scene = new THREE.Scene();
+            const spotLight1 = new THREE.DirectionalLight( 0xFFFFFF, 2.5 );
+            spotLight1.position.set( 10, 10, 10 );
+            spotLight1.target.position.set( 0, 0, 0 );
+            scene.add( spotLight1 );
+            const spotLight2 = new THREE.DirectionalLight( 0xFFFFFF, 0.5 );
+            spotLight2.position.set( -10, -10, -10 );
+            spotLight2.target.position.set( 0, 0, 0 );
+            scene.add( spotLight2 );
+            controls = new OrbitControls( camera, renderer.domElement );
+        }
+        // MODELING OBJECTS + ANIMATION -> edit as needed (need to interpolate ...)
+        function create(index=18, resol=25, shading='w') {
+            const color1r = 0, color1g = 255*3, color1b = 0;
+            const color2r = 0, color2g = 0, color2b = 255;
+            let alpha = index / (objects.length-1);
+            let colorr = color1r * (1 - alpha) + color2r * (alpha);
+            let colorg = color1g * (1 - alpha) + color2g * (alpha);
+            let colorb = color1b * (1 - alpha) + color2b * (alpha);
+            let color = (Math.round(colorr) * 256 * 256) + (Math.round(colorg) * 256) + Math.round(colorb);
+            const geometry = new ParametricGeometry( 
+                (u, v, target) => {
+                    let index1 = Math.floor(index);
+                    let index2 = index1 + 1;
+                    let xyz1 = objects[index1](u, v, target);
+                    let xyz2;
+                    if (index2 < objects.length)
+                        xyz2 = objects[index2](u, v, target);
+                    else
+                        xyz2 = {x: 0, y: 0, z: 0};
+                    let x1 = (1 - (index - Math.floor(index))) * xyz1.x;
+                    let y1 = (1 - (index - Math.floor(index))) * xyz1.y;
+                    let z1 = (1 - (index - Math.floor(index))) * xyz1.z;
+                    let x2 = (index - Math.floor(index)) * xyz2.x;
+                    let y2 = (index - Math.floor(index)) * xyz2.y;
+                    let z2 = (index - Math.floor(index)) * xyz2.z;
+                    target.set(x1 + x2, y1 + y2, z1 + z2);
+                }, 
+                resol, resol );
+
+            //shading
+            if (shading == 'l'){
+                 const material = new THREE.MeshLambertMaterial(
+                        { wireframe: false, color: color, side: THREE.DoubleSide }
+                        );
+                    mesh = new THREE.Mesh( geometry, material );
+                    mesh.add( new THREE.AxesHelper( 2.5 ) );
+                    scene.add(mesh);
+            }
+            else if (shading == 'p'){
+                 const material = new THREE.MeshPhongMaterial(
+                        { wireframe: false, color: color, side: THREE.DoubleSide }
+                        );
+                    mesh = new THREE.Mesh( geometry, material );
+                    mesh.add( new THREE.AxesHelper( 2.5 ) );
+                    scene.add(mesh);
+            }
+            else if (shading == 'f'){
+                //to change to flat somehow
+                const material = new THREE.MeshNormalMaterial();
+                    mesh = new THREE.Mesh( geometry, material );
+                    mesh.add( new THREE.AxesHelper( 2.5 ) );
+                    scene.add(mesh);
+            }
+            else if (shading == 'w') {
+                const material = new THREE.MeshStandardMaterial(
+                        { wireframe: true, color: color, metalness: 0.5,
+                        side: THREE.DoubleSide }
+                        );
+                    mesh = new THREE.Mesh( geometry, material );
+                    mesh.add( new THREE.AxesHelper( 2.5 ) );
+                    scene.add(mesh);
+            }
+        }
+        
+        // PARAMETRIC FUNCTIONS -> edit as needed
+        // fun( u : number, // the u coordinate on the surface, in the range [0,1] - theta
+        //      v : number, // the v coordinate on the surface, in the range [0,1] - phi 
+        //      target : Vector3 ) // the vector that is used to store the x,y,z coords
+
+        //parametric functions
+        function f1 ( u, v, target ) { // surface 1
+            var u = u * 2 * Math.PI; 
+            var v = v * 2 * Math.PI; 
+            var x = 1.6 * Math.pow( Math.cos(0.5 * v) , 3);
+            var y = 1.6 * Math.pow( (Math.cos(u) * Math.sin(0.5 * v)) , 3);
+            var z = 1.6 * Math.sin(u) * Math.sin(0.5 * v);
+            return {x: x, y: y, z: z};
+        }
+        function f2 ( u, v, target ) { // surface 2
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 1.5 * v * Math.cos(u) / (2 * Math.PI);
+            var y = 1.5 * v * Math.sin(u) * Math.cos(u) / (2 * Math.PI);
+            var z = 1.5 * v * Math.pow( Math.sin(v) , 5) / (2 * Math.PI);
+            return {x: x, y: y, z: z};
+        }
+        function f3 ( u, v, target ) { // surface 3
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = v * Math.cos(u) / (2 * Math.PI);
+            var y = v * Math.sin(u) / (2 * Math.PI);
+            var z = v / (2 * Math.PI);
+            return {x: x, y: y, z: z};
+        }
+        function f4( u, v, target ) {  // surface 4
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = Math.cos(0.5*v) * Math.sin(0.5*v);
+            var y = Math.cos(u) * Math.sin(0.5*v);
+            var z = Math.sin(u) * Math.sin(0.5*v);
+            return {x: x, y: y, z: z};
+        }
+        function f5( u, v, target ) {  // surface 5
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = Math.cos(0.5*v);
+            var y = Math.cos(u) * Math.sin(0.5*v);
+            var z = Math.sin(u) * Math.sin(0.5*v);
+            return {x: x, y: y, z: z};
+        }
+        function f6( u, v, target ) {  // surface 6
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = (1 + 0.25 * Math.cos(u)) * Math.cos(v);
+            var y = (1 + 0.25 * Math.cos(u)) * Math.sin(v);
+            var z = 0.25 * Math.sin(u);
+            return {x: x, y: y, z: z};
+        }        
+        function f7( u, v, target ) {  // surface 7
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = Math.cos(u) * Math.pow(Math.sin(0.5*v), 3);
+            var y = Math.sin(u) * Math.pow(Math.sin(0.5*v), 3);
+            var z = Math.cos(0.5*v);
+            return {x: x, y: y, z: z};
+        }
+        function f8( u, v, target ) {  // surface 8
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.25 * v * Math.cos(u);
+            var y = 0.25 * u - 0.5;
+            var z = 0.25 * v * Math.sin(u);
+            return {x: x, y: y, z: z};
+        }
+        function f9( u, v, target ) {  // surface 9
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.5 * Math.cos(u) * (-3 + Math.cos(v) * (1 + Math.cos(v)));
+            var y = 0.5 * Math.sin(v) * (1 + Math.cos(v));
+            var z = 0.5 * Math.sin(u) * (-3 + Math.cos(v) * (1 + Math.cos(v)));
+            return {x: x, y: y, z: z};
+        }
+        function f10( u, v, target ) { // surface 10
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.5 * ((v - 0.5 * Math.sin(v)) - 3);
+            var y = 0.5 * Math.cos(u) * (1 - 0.5 * Math.cos(v));
+            var z = 0.5 * Math.sin(u) * (1 - 0.5 * Math.cos(v));
+            return {x: x, y: y, z: z};
+        }
+        function f11( u, v, target ) { // surface 11
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 2.5 * v / ( Math.pow(v,3) + 1);
+            var y = 2.5 * Math.cos(u) * Math.pow(v,2) / ( Math.pow(v,3) + 1);
+            var z = 2.5 * Math.sin(u) * Math.pow(v,2) / ( Math.pow(v,3) + 1);
+            return {x: x, y: y, z: z};
+        }
+        function f12( u, v, target ) { // surface 12
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.25 * (2 * v - Math.sin(2*v) - 2 * Math.PI);
+            var y = 0.5 * Math.cos(u) * (2 - Math.cos(2*v));
+            var z = 0.5 * Math.sin(u) * (2 - Math.cos(2*v));
+            return {x: x, y: y, z: z};
+        }
+        function f13( u, v, target ) { // surface 13
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.5 * (Math.cos(v) + 0.5 * Math.cos(2*v));
+            var y = 0.5 * Math.cos(u) * (2 + Math.sin(v) - 0.5 * Math.sin(2*v));
+            var z = 0.5 * Math.sin(u) * (2 + Math.sin(v) - 0.5 * Math.sin(2*v));
+            return {x: x, y: y, z: z};
+        }
+        function f14( u, v, target ) { // surface 14
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.1 * (3 * Math.cos(v) + 0.8 * Math.cos(3*v));
+            var y = 0.2 * Math.cos(u) * (5 + 3 * Math.sin(v) - 0.8 * Math.sin(3*v));
+            var z = 0.2 * Math.sin(u) * (5 + 3 * Math.sin(v) - 0.8 * Math.sin(3*v));
+            return {x: x, y: y, z: z};
+        }
+        function f15( u, v, target ) { // surface 15
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.15 * (4 * Math.cos(v) - Math.cos(4*v));
+            var y = 0.15 * Math.cos(u) * (6 + 4 * Math.sin(v) - Math.sin(4*v));
+            var z = 0.15 * Math.sin(u) * (6 + 4 * Math.sin(v) - Math.sin(4*v));
+            return {x: x, y: y, z: z};
+        }
+        function f16( u, v, target ) { // surface 16
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = Math.cos( 2 * Math.PI * Math.sin(0.5*v) );
+            var y = Math.cos(u) * Math.sin(0.5*v);
+            var z = Math.sin(u) * Math.sin(0.5*v);
+            return {x: x, y: y, z: z};
+        }
+        function f17( u, v, target ) { // surface 17
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = Math.sin(u);
+            var y = Math.cos(v);
+            var z = Math.sin(u) * Math.sin(v);
+            return {x: x, y: y, z: z};
+        }
+        function f18( u, v, target ) { // surface 18
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = (Math.cos(u) + 1) * Math.cos(v);
+            var y = Math.sin(u) * Math.cos(v);
+            var z = Math.sin(v);
+            return {x: x, y: y, z: z};
+        }
+        function f19( u, v, target ) { // surface 19
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.5 * (Math.cos(v) + 2) * Math.cos(u);
+            var y = 0.5 * (Math.sin(v) + (2*u/Math.PI) -2);
+            var z = -0.5 * (Math.cos(v) + 2) * Math.sin(u);
+            return {x: x, y: y, z: z};
+        }
+        function f20( u, v, target ) { // surface 20
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.2 * u * Math.sin(v);
+            var y = 0.2 * v * Math.sin(u);
+            var z = 0.2 * v * Math.cos(u);
+            return {x: x, y: y, z: z};
+        }
+        function f21( u, v, target ) { // surface 21
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 1.5 * u / Math.PI - 1;
+            var y = 0.15 * Math.cos( 5 * Math.pow( Math.pow(2*u/Math.PI -2,2) + Math.pow(2*v/Math.PI -2,2) , 0.5) );
+            var z = 1.5 * v / Math.PI - 1;
+            return {x: x, y: y, z: z};
+        }
+        function f22( u, v, target ) { // surface 22
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 1.5 * Math.cos(u) * Math.sin(v);
+            var y = 1.5 * Math.sin(u) * Math.sin(v);
+            var z = 0.15 * Math.pow( u*u + v*v , 0.5) * Math.cos(v);
+            return {x: x, y: y, z: z};
+        }
+        function f23( u, v, target ) { // surface 23
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 2 * Math.pow(Math.cos(u),3) * Math.pow(Math.sin(0.5*v),5);
+            var y = 2 * Math.pow(Math.sin(u),3) * Math.pow(Math.sin(0.5*v),5);
+            var z = 2 * Math.pow(Math.sin(0.5*v),5) * Math.cos(0.5*v);
+            return {x: x, y: y, z: z};
+        }
+        function f24( u, v, target ) { // surface 24
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 2 * Math.pow(Math.cos(u),3) * Math.pow(Math.sin(0.5*v),3);
+            var y = 2 * Math.pow(Math.sin(u),3) * Math.pow(Math.sin(0.5*v),3);
+            var z = 2 * Math.pow(Math.cos(0.5*v),3);
+            return {x: x, y: y, z: z};
+        }
+        function f25( u, v, target ) { // surface 25
+            var u = u * 2 * Math.PI;
+            var v = v * 2 * Math.PI;
+            var x = 0.2 * Math.pow(u*u + v*v, 0.5) * Math.cos(v);
+            var y = 0.1 * u * Math.cos(u);
+            var z = -0.2 * Math.pow(u*u + v*v, 0.5) * Math.sin(v);
+            return {x: x, y: y, z: z};
+        }
+
+        function onDocumentKeyDown(event){
+            //var keycode = event.which; - read somewhere that its depreciated
+            var keycode = event.key;
+            switch (keycode){
+            //number keys
+                case "1": //solid object f1
+                    anim15flag = anim18flag  = false; pauseAnimFlag = true;
+                    scene.remove(mesh);
+                    create(18,25,shading);
+                    index = 18;
+                    break;
+                case "2": //solid object f2
+                    anim15flag = anim18flag  = false; pauseAnimFlag = true;
+                    scene.remove(mesh);
+                    create(19,25,shading);
+                    index = 19;
+                    break; 
+            //letters
+                case "l": //lambert shading
+                    scene.remove(mesh);
+                    create(index,25,'l');
+                    shading = 'l';
+                    break;
+                case "q": //reset to original, shape 18, wireframe
+                    scene.remove(mesh);
+                    shading = 'w';
+                    index = 18;
+                    rotation_flag = cLODFlag = anim15flag = anim18flag =  false;
+                    camera.position.set( 1, 2, 4 );
+                    create(index,25,shading);
+                    break;
+                case "n": //normal shading - flat shading???
+                    scene.remove(mesh);
+                    create(index,25,'f');
+                    shading = 'f';
+                    break;                
+                case "p": //phong shading
+                    scene.remove(mesh);
+                    create(index,25,'p');
+                    shading = 'p';
+                    break;
+                case "w": //set to wireframe
+                    scene.remove(mesh);
+                    create(index,25,'w');
+                    shading = 'w';
+                    break;
+                case "r": //rotation animation
+                    rotation_flag = (rotation_flag == false) ? true : false;
+                    if (rotation_flag){
+                        animate();
+                    }
+                    break;
+                case "f":
+                    animSpeed *= 1.1; //speed up by 10%
+                    break;
+                case "s":
+                    animSpeed *= 0.9; //set to 90% speed
+                    break;
+                case "c":
+                    cLODFlag = (cLODFlag == false) ? true : false;
+                    if (cLODFlag){
+                        animate();
+                    } else {
+                        scene.remove(mesh);
+                        create(index, 25, shading);                  
+                    }
+                    break;
+                case "a":
+                    anim18flag = false;
+                    anim15flag = (anim15flag == false) ? true : false;
+                    pauseAnimFlag = false;
+                    if (anim15flag){
+                        animate();
+                    }
+                    break;
+                case "t":
+                    pauseAnimFlag = (pauseAnimFlag == false) ? true : false;
+                    if (pauseAnimFlag){
+                        animate();
+                    }
+                    break;
+                case "z":
+                    anim15flag = false;
+                    anim18flag = (anim18flag == false) ? true : false;
+                    pauseAnimFlag = false;
+                    if (anim18flag){
+                        animate();
+                    }
+                    break;
+                case "j":
+                    anim15flag = false;
+                    anim18flag = false;
+                    prevFlag = true;
+                    break;
+                case "k":
+                    anim15flag = false;
+                    anim18flag = false;
+                    nextFlag = true;
+                    break;
+                case "x":
+                    document.removeEventListener( "keydown", onDocumentKeyDown, false );
+                    document.addEventListener( "keydown", onDocumentKeyDownTwo, false );
+                    break;
+            //symbols
+                case "[": //zoom in
+                    camera.position.x -= camera.position.x*0.1;
+                    camera.position.y -= camera.position.y*0.1;
+                    camera.position.z -= camera.position.z*0.1; 
+                    controls.update();
+                    break;
+                case "]": //zoom out
+                    camera.position.x += camera.position.x*0.1;
+                    camera.position.y += camera.position.y*0.1;
+                    camera.position.z += camera.position.z*0.1;
+                    controls.update();
+                    break;
+            //arrow keys
+                case "ArrowRight": //rotate about Y +3 degrees
+                    ry += 3*Math.PI/180;
+                    mesh.rotation.y = ry;
+                    break;  
+                case "ArrowLeft":  //rotate about Y -3 degrees
+                    ry -= 3*Math.PI/180;
+                    mesh.rotation.y = ry;
+                    break;
+                case "ArrowUp":    //rotate about X +3 degrees
+                    rx += 3*Math.PI/180;
+                    mesh.rotation.x = rx;
+                    break; 
+                case "ArrowDown":  //rotate about X -3 degrees
+                    rx -= 3*Math.PI/180;
+                    mesh.rotation.x = rx;
+                    break;   
+                
+                default :
+                  create(18,25,true);
+                  index = 18;
+                  shading ='f';      
+            }
+        }
+
+        function onDocumentKeyDownTwo(event){
+            //var keycode = event.which; - read somewhere that its depreciated
+            var keycode = event.key;
+            switch (keycode){
+                case "0":
+                    buffer += "0";
+                    break;
+                case "1":
+                    buffer += "1";
+                    break;
+                case "2":
+                    buffer += "2";
+                    break;
+                case "3":
+                    buffer += "3";
+                    break;
+                case "4":
+                    buffer += "4";
+                    break;
+                case "5":
+                    buffer += "5";
+                    break;
+                case "6":
+                    buffer += "6";
+                    break;
+                case "7":
+                    buffer += "7";
+                    break;
+                case "8":
+                    buffer += "8";
+                    break;
+                case "9":
+                    buffer += "9";
+                    break;
+                case "x":
+                    document.removeEventListener( "keydown", onDocumentKeyDownTwo, false );
+                    index = parseInt(buffer) - 1;
+                    anim15flag = anim18flag = false;
+                    pauseAnimFlag = true;
+                    if (index >= 24) index = 24;
+                    if (index <= 0 || index == NaN) index = 0;
+                    buffer = "";
+                    document.addEventListener( "keydown", onDocumentKeyDown, false );
+            }
+        }
+
+        // RENDERING IMAGE + ANIMATION -> edit as needed
+        function animate() {
+            let res = 25;
+            if (anim15flag) {
+                if (!pauseAnimFlag){
+                    index = 18 + (Math.cos(t) * -0.5 + 0.5);
+
+                    t += 0.02 * animSpeed;
+
+                    if (index >= 19) index = 19;
+                    if (index <= 18) index = 18;
+                }
+            }
+
+            if (anim18flag) {
+                if (!pauseAnimFlag){
+                    index = Math.cos(t) * -12 + 12;
+
+                    t += 0.002 * animSpeed;
+
+                    if (index > 24) index = 24;
+                    if (index < 0) index = 0;
+                }
+            }
+
+            if (prevFlag) {
+                index = Math.floor(index);
+                index = (index + objects.length - 1) % objects.length;
+                pauseAnimFlag = true;
+                prevFlag = false;
+            }
+            if (nextFlag) {
+                index = Math.floor(index);
+                index = (index + 1) % objects.length;
+                pauseAnimFlag = true;
+                nextFlag = false;
+            }
+
+            if (!anim15flag && !anim18flag && !pauseAnimFlag) {
+                index = 18;
+                t = 0;
+            }
+
+            if (cLODFlag) {
+                res = Math.floor(Math.max(5, 30 - 0.5 * camera.position.length()));
+            }
+
+            if (rotation_flag){
+                ry += (3*Math.PI/180) * animSpeed;
+            }
+            scene.remove(mesh);
+            create(index, res, shading);
+            mesh.rotation.y = ry;
+            mesh.rotation.x = rx;
+
+            controls.update();
+            renderer.render( scene, camera );
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }
+    </script>
+    <!-- refs: https://threejs.org/docs/?q=parametri#ParametricGeometry
+    https://vector-calculus.github.io/parametric-surfaces-gallery/
+    http://www.drhuang.com/science/mathematics/software/help/examples/parametric/
+    -->
+    </body>
+</html>
